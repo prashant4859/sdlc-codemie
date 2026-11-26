@@ -25,7 +25,7 @@ app.post('/api/tasks', (req, res) => {
     return res.status(400).json({
       error: {
         code: 'VALIDATION_ERROR',
-        message: 'Title is required.',
+        message: 'Title is required',
       },
     });
   }
@@ -34,23 +34,23 @@ app.post('/api/tasks', (req, res) => {
     return res.status(400).json({
       error: {
         code: 'VALIDATION_ERROR',
-        message: 'Title must be a string.',
+        message: 'Title must be a string',
       },
     });
   }
 
-  const trimmedTitle = title.trim();
-  if (trimmedTitle.length === 0) {
+  const trimmed = title.trim();
+  if (trimmed.length === 0) {
     return res.status(400).json({
       error: {
         code: 'VALIDATION_ERROR',
-        message: 'Title must not be empty.',
+        message: 'Title cannot be blank',
       },
     });
   }
 
-  const info = db.prepare('INSERT INTO tasks (title) VALUES (?)').run(trimmedTitle);
-  res.status(201).json({ id: info.lastInsertRowid, title: trimmedTitle });
+  const info = db.prepare('INSERT INTO tasks (title) VALUES (?)').run(trimmed);
+  res.status(201).json({ id: info.lastInsertRowid, title: trimmed });
 });
 
 app.delete('/api/tasks/:id', (req, res) => {
