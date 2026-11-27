@@ -19,8 +19,38 @@ app.get('/api/tasks', (req, res) => {
 });
 
 app.post('/api/tasks', (req, res) => {
-  const info = db.prepare('INSERT INTO tasks (title) VALUES (?)').run(req.body.title);
-  res.status(201).json({ id: info.lastInsertRowid, title: req.body.title });
+  const title = req.body?.title;
+
+  if (title === undefined || title === null) {
+    return res.status(400).json({
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'Title is required',
+      },
+    });
+  }
+
+  if (typeof title !== 'string') {
+    return res.status(400).json({
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'Title must be a string',
+      },
+    });
+  }
+
+  const trimmed = title.trim();
+  if (trimmed.length === 0) {
+    return res.status(400).json({
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'Title cannot be blank',
+      },
+    });
+  }
+
+  const info = db.prepare('INSERT INTO tasks (title) VALUES (?)').run(trimmed);
+  res.status(201).json({ id: info.lastInsertRowid, title: trimmed });
 });
 
 app.delete('/api/tasks/:id', (req, res) => {
@@ -28,5 +58,9 @@ app.delete('/api/tasks/:id', (req, res) => {
   res.status(204).end();
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`TaskPad running on http://localhost:${PORT}`));
+module.exports = app;
+
+if (require.main === module) {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => console.log(`TaskPad running on http://localhost:${PORT}`));
+}
