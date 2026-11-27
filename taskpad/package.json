@@ -2,12 +2,20 @@
   "name": "taskpad",
   "version": "1.0.0",
   "main": "server.js",
-  "scripts": { "start": "node server.js", "test": "node --test" },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
   "dependencies": {
     "better-sqlite3": "^13.2.0",
     "express": "^4.19.2"
   },
   "devDependencies": {
+    "@playwright/test": "^1.65.1",
     "supertest": "^7.1.4"
+  },
+  "scripts-extended": {
+    "test:api": "node --test test/api/*.test.js",
+    "test:ui": "playwright test"
   }
 }
