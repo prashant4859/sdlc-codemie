@@ -1,98 +1,253 @@
 # TaskPad
 
-TaskPad is a lightweight task manager built with Node.js, Express, and SQLite. It provides a simple browser interface for adding, listing, and deleting tasks.
+TaskPad is a lightweight, browser-based task management application in this repository. It lets users create tasks, view the most recently created tasks first, and delete tasks. Task data is persisted in a local SQLite database.
+
+The application is implemented with a small Node.js/Express backend and a vanilla HTML/JavaScript frontend.
 
 ## Features
 
-- Add tasks from the web interface
-- View tasks in reverse creation order
-- Delete existing tasks
-- Persist tasks in a SQLite database
-- Configure the HTTP port and database location with environment variables
+- Create tasks through the browser UI or REST API.
+- List tasks in reverse creation order (newest first).
+- Delete tasks through the browser UI or REST API.
+- Persist task records in SQLite using `better-sqlite3`.
+- Validate task creation requests on the server:
+  - A title is required.
+  - The title must be a string.
+  - Empty and whitespace-only titles are rejected.
+  - Leading and trailing whitespace is trimmed before the task is stored.
+- Configure the server port and database file location using environment variables.
 
-## Tech Stack
+> **Current UI limitation:** The backend validates task titles and returns structured errors, but the current browser UI does not yet provide complete client-side validation or user-facing handling for failed list/create/delete requests. This frontend behavior is tracked separately in Jira story [TP-5](https://prashantchauhan4859.atlassian.net/browse/TP-5).
 
-- **Frontend:** HTML, CSS-free vanilla JavaScript
-- **Backend:** Node.js and Express
-- **Database:** SQLite via `better-sqlite3`
+## Technology Stack
+
+| Layer | Technology |
+| --- | --- |
+| Runtime | Node.js 18+ |
+| Backend | Express 4 |
+| Database | SQLite with better-sqlite3 |
+| Frontend | HTML and vanilla JavaScript |
+| API tests | Node.js test runner and Supertest |
+| UI tests | Playwright |
+
+## Repository Structure
+
+```text
+.
+├── README.md
+└── taskpad/
+    ├── public/
+    │   ├── app.js                 # Browser-side task interactions
+    │   └── index.html             # TaskPad page
+    ├── test/
+    │   ├── api/                   # REST API tests
+    │   ├── ui/                    # Playwright browser tests
+    │   ├── gherkin/               # Gherkin feature specifications
+    │   ├── tasks.post.test.js     # Additional task API tests
+    │   └── TESTING.md             # Test setup and execution notes
+    ├── package.json               # Dependencies and npm scripts
+    └── server.js                  # Express app and REST API
+```
+
+The SQLite database is created automatically when the application starts. By default, it is named `tasks.db` in the application working directory.
 
 ## Prerequisites
 
 - Node.js 18 or newer
 - npm
+- A supported operating system for the `better-sqlite3` package
 
 ## Installation
 
-From the `taskpad` directory:
+Open a terminal at the repository root and install the application dependencies:
 
-```powershell
+```bash
+cd taskpad
 npm install
 ```
 
-## Running the Application
+Install the Playwright browser binaries before running browser tests:
 
-```powershell
+```bash
+npx playwright install
+```
+
+## Run the Application
+
+From the `taskpad/` directory:
+
+```bash
 npm start
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in a browser.
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-The server creates `tasks.db` and the `tasks` table automatically when they do not already exist.
+The server uses port `3000` by default. It creates the SQLite database and the `tasks` table automatically if they do not exist.
 
 ## Configuration
 
-You can configure TaskPad with environment variables:
+TaskPad supports the following environment variables:
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `PORT` | `3000` | Port used by the HTTP server |
-| `DB_PATH` | `tasks.db` | Path to the SQLite database file |
+| `PORT` | `3000` | HTTP port used by the Express server |
+| `DB_PATH` | `tasks.db` | SQLite database file path |
 
-PowerShell example:
+### PowerShell
 
 ```powershell
-$env:PORT=8080
-$env:DB_PATH="C:\data\taskpad.db"
+$env:PORT = "8080"
+$env:DB_PATH = "C:\\data\\taskpad.db"
 npm start
 ```
 
-## API
+### macOS / Linux
 
-| Method | Endpoint | Description |
-| --- | --- | --- |
-| `GET` | `/api/tasks` | Returns all tasks, newest first |
-| `POST` | `/api/tasks` | Creates a task |
-| `DELETE` | `/api/tasks/:id` | Deletes a task |
+```bash
+PORT=8080 DB_PATH=/tmp/taskpad.db npm start
+```
 
-Create a task:
+Use a separate database path for automated tests so that test data does not modify your local development database.
+
+## REST API
+
+All API endpoints are served by the same Express application.
+
+| Method | Endpoint | Success response | Description |
+| --- | --- | --- | --- |
+| `GET` | `/api/tasks` | `200 OK` | Returns all tasks, newest first |
+| `POST` | `/api/tasks` | `201 Created` | Validates and creates a task |
+| `DELETE` | `/api/tasks/:id` | `204 No Content` | Deletes a task; deleting a non-existent ID is also idempotent |
+
+### Task data
+
+A task returned by the API contains:
+
+| Field | Description |
+| --- | --- |
+| `id` | Auto-incremented task identifier |
+| `title` | Task title |
+| `created_at` | Timestamp generated by SQLite |
+
+### Create a task
+
+Request:
+
+```http
+POST /api/tasks
+Content-Type: application/json
+
+{
+  "title": "  Buy groceries  "
+}
+```
+
+Successful response (`201 Created`):
+
+```json
+{
+  "id": 1,
+  "title": "Buy groceries"
+}
+```
+
+The server trims leading and trailing whitespace before storing and returning the title.
+
+### Validation errors
+
+A missing, non-string, empty, or whitespace-only title returns `400 Bad Request` with a structured error object.
+
+Example:
+
+```json
+{
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Title cannot be blank"
+  }
+}
+```
+
+### Example API calls
+
+Using curl:
+
+```bash
+# List tasks
+curl http://localhost:3000/api/tasks
+
+# Create a task
+curl -X POST http://localhost:3000/api/tasks \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Buy groceries"}'
+
+# Delete task with ID 1
+curl -X DELETE http://localhost:3000/api/tasks/1
+```
+
+PowerShell:
 
 ```powershell
+# List tasks
+Invoke-RestMethod -Method Get -Uri http://localhost:3000/api/tasks
+
+# Create a task
 Invoke-RestMethod -Method Post `
   -Uri http://localhost:3000/api/tasks `
   -ContentType "application/json" `
   -Body '{"title":"Buy groceries"}'
-```
 
-List tasks:
-
-```powershell
-Invoke-RestMethod -Method Get -Uri http://localhost:3000/api/tasks
-```
-
-Delete a task:
-
-```powershell
+# Delete a task
 Invoke-RestMethod -Method Delete -Uri http://localhost:3000/api/tasks/1
 ```
 
-## Project Structure
+## Testing
 
-```text
-taskpad/
-├── public/
-│   ├── app.js       # Browser-side task interactions
-│   └── index.html   # Main application page
-├── package.json     # npm scripts and dependencies
-├── server.js        # Express server and REST API
-└── tasks.db         # SQLite database, created as needed
+Run commands from the `taskpad/` directory unless otherwise stated.
+
+### API and Node.js tests
+
+```bash
+npm test
 ```
+
+The API tests use Node's built-in test runner and Supertest. Test processes should use a temporary `DB_PATH` to isolate test data from the development database.
+
+You can also run the API test files from the repository root:
+
+```bash
+node --test taskpad/test/api/*.test.js
+```
+
+### UI tests
+
+Start the application in one terminal:
+
+```bash
+cd taskpad
+PORT=3000 DB_PATH=./tasks-ui-test.db npm start
+```
+
+In another terminal, from `taskpad/`, run:
+
+```bash
+npx playwright test
+```
+
+Install the required browser binaries first with `npx playwright install`. See [taskpad/test/TESTING.md](taskpad/test/TESTING.md) for additional test setup notes.
+
+> Test coverage includes existing task workflows and validation scenarios. Check the test results before treating the suite as green; some validation/UI scenarios are documented as expected to fail until the related implementation is completed.
+
+## Development Notes
+
+- Keep the frontend lightweight; it currently uses browser-native JavaScript without a frontend framework.
+- Keep database operations parameterized.
+- Do not commit local database files, secrets, or environment-specific configuration.
+- Preserve existing API behavior unless a story explicitly changes the contract.
+- Keep API and UI tests isolated from developer data.
+
+## Related Jira Work
+
+- [TP-2 – Improve TaskPad reliability and task management experience (Epic)](https://prashantchauhan4859.atlassian.net/browse/TP-2)
+- [TP-1 – Harden TaskPad task creation with input validation and API error handling](https://prashantchauhan4859.atlassian.net/browse/TP-1)
+- [TP-5 – Implement TaskPad frontend validation and API error feedback](https://prashantchauhan4859.atlassian.net/browse/TP-5)
